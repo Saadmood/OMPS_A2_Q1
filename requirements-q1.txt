@@ -1,0 +1,5 @@
+# Tested on Python 3.12.14. HiGHS is included in SciPy; no paid solver license.
+numpy==2.3.5
+scipy==1.17.0
+pandas==2.2.3
+matplotlib==3.10.8

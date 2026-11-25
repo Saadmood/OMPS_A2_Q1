@@ -1,0 +1,531 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=18mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs,tabularx,array}
+\usepackage{graphicx,float,placeins}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!65!black,citecolor=blue!65!black,urlcolor=blue!65!black]{hyperref}
+\hypersetup{pdftitle={46750 Assignment 2 - Question 1},pdfsubject={Central dispatch, contract sensitivity and marginal-price settlement}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\renewcommand{\arraystretch}{1.07}
+\setlength{\textfloatsep}{10pt plus 2pt minus 3pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\AtBeginDocument{\setlength{\abovedisplayskip}{7pt plus 2pt minus 2pt}
+\setlength{\belowdisplayskip}{7pt plus 2pt minus 2pt}
+\setlength{\abovedisplayshortskip}{4pt plus 2pt}
+\setlength{\belowdisplayshortskip}{5pt plus 2pt}}
+\graphicspath{{../results/q1/figures/}}
+\input{../results/q1/tables/base_values.tex}
+\input{../results/q1/tables/sensitivity_values.tex}
+\newcommand{\pos}[1]{\left[#1\right]_+}
+\newcommand{\Rmod}{\mathcal R}
+\newcommand{\Imod}{\mathcal I}
+\newcommand{\Cmod}{\mathcal C}
+\newcommand{\DKK}{\mathrm{DKK}}
+\newcommand{\kWh}{\mathrm{kWh}}
+\newcommand{\kW}{\mathrm{kW}}
+
+\begin{document}
+\begin{center}
+    {\large 46750 -- Optimization in Modern Power Systems}\\[3pt]
+    {\LARGE\bfseries Assignment 2: Question 1}\\[2pt]
+    {\large Is the community worth forming?}\\[-1pt]
+    {\small Base case d1 and contract sensitivity study}
+\end{center}
+
+\noindent\textbf{Main result.} At the supplied contract terms, a community contract with central dispatch reduces the daily economic cost by \Cgain{} DKK (\Cgainpct\%) relative to no contract and eliminates the feeder's \Rex{} kWh of exceedance. Individual contracts reduce congestion but raise the total cost by \Iloss{} DKK. Pooling is therefore efficient, but the uniform dual-price settlement is not budget balanced: it collects an additional \Crent{} DKK of congestion rent, and only \IRR{} of 16 members benefit relative to not signing. The contract and its settlement must be evaluated separately.
+
+\section*{Nomenclature}
+\small
+\begin{tabularx}{\linewidth}{@{}p{0.29\linewidth}X@{}}
+\toprule
+Symbol & Definition (units)\\
+\midrule
+$i\in\mathcal N,\ t\in\mathcal T$ & Member and hour; $\mathcal N$ has 16 members, $\mathcal T=\{0,\ldots,23\}$. Each hour is one hour long.\\
+$\mathcal N_{\rm PV},\mathcal N_{\rm B},\mathcal N_k$ & Members with PV, with batteries, and in load class L$k$, $k\in\{1,2,3,4\}$.\\
+$\mathcal X,\mathcal Y$ & Model labels in $\{\Rmod,\Imod,\Cmod\}$: no contract, individual contracts, shared contract under direct control.\\
+$p_t,\tau^{\rm imp},\tau^{\rm exp}$ & Day-ahead price, full import and export tariffs (DKK/kWh).\\
+$L^{\max},\rho_t,\Delta$ & Maximum load (kW), dimensionless reference profile factor, maximum hourly deviation (kW).\\
+$\ell^{\rm ref}_{i,t},\underline\ell_{i,t},\bar\ell_{i,t}$ & Reference load, lower and upper feasible load (kW).\\
+$E_i^{\min},c_i^L,c_i^G$ & Minimum daily consumption (kWh), load disutility slope and PV marginal production cost (DKK/kWh).\\
+$\bar g_{i,t}$ & Available PV output (kW); zero for a non-PV member.\\
+$\bar p_i^{\rm ch},\bar p_i^{\rm dis}$ & Battery charging and discharging power limits (kW).\\
+$\bar s_i,s_i^0,\eta_i^{\rm ch},\eta_i^{\rm dis}$ & Battery capacity and starting stored energy (kWh); charging and discharging efficiencies (fraction).\\
+$\beta^{\rm DSO},\alpha^{\rm DSO}, f$ & Tariff discount (fraction), exceedance penalty (DKK/kWh) and cap energy factor.\\
+$K_t=\bar P_t^{\rm DSO},\ K_{i,t}=\bar P_{i,t}^{\rm DSO},\ \kappa_i$ & Shared cap and individual cap (kW); member's net-import share (fraction).\\
+$a,b,\gamma$ & Discounted import tariff, discounted export tariff and incremental excess coefficient (DKK/kWh).\\
+$\ell_{i,t},d_{i,t},g_{i,t}$ & Scheduled load, absolute load deviation, dispatched PV output (kW).\\
+$p_{i,t}^{\rm ch}, p_{i,t}^{\rm dis},s_{i,t}$ & Battery charge/discharge (kW) and end-of-hour stored energy (kWh).\\
+$\bm x_i,\ q_{i,t}$ & Vector of member's appliance variables over the day; signed net demand (kW, positive for consumption).\\
+$q_{i,t}^{\rm imp},q_{i,t}^{\rm exp}, e_{i,t}$ & Individual meter import, export and above-cap import (kW).\\
+$P_t^{\rm imp},P_t^{\rm exp}, e_t$ & Corresponding quantities at the shared meter (kW).\\
+$F_i,\ J_i^{\mathcal R},J_i^{\mathcal I},J^{\mathcal X}$ & Local PV and discomfort cost, optimal member costs under the individual models, and total optimal economic cost (DKK/day).\\
+$\lambda_t,\mu_t,\nu_i$ & Internal marginal price, nonnegative shared-cap shadow value, nonnegative daily-energy shadow value (DKK/kWh).\\
+$A_t^\mathcal X,H^\mathcal X,S_k^\mathcal X$ & Aggregate metered import (kW); feeder exceedance and energy shifted by class $k$ (kWh/day).\\
+$B_{\mathcal X|\mathcal Y},B_{i|\mathcal Y}$ & Cost gain of model $\mathcal X$ vs $\mathcal Y$, and individual gain of community settlement vs outside option $\mathcal Y$ (DKK/day).\\
+$J_i^{\mathcal C,\rm set}, B^{\rm mgr}$ & Settled member cost and manager's net daily receipt (DKK/day).\\
+$[z]_+=\max(0,z)$ & Positive part of scalar $z$.\\
+\bottomrule
+\end{tabularx}
+\normalsize
+
+\section{Question 1 -- Centralized provision of grid services}
+\label{sec:q1}
+
+\subsection{Data and modeling choices}
+The base case is loaded from the supplied starter files without changing the input data \cite{a2,starter}. There are four consumers per load slope $c_i^L\in\{0.25,0.50,1.00,2.00\}$ DKK/kWh, one of each asset combination (no assets, PV, battery, PV and battery). All loads have $L^{\max}=3$ kW, $\Delta=1$ kW and the hourly reference and feasible bounds
+\begin{equation}
+\begin{gathered}
+\ell^{\rm ref}_{i,t}=L^{\max}\rho_t,\qquad
+\underline\ell_{i,t}=\max(0,\ell^{\rm ref}_{i,t}-\Delta),\\
+\bar\ell_{i,t}=\min(L^{\max},\ell^{\rm ref}_{i,t}+\Delta),
+\qquad E_i^{\min}=\sum_{t\in\mathcal T}\ell^{\rm ref}_{i,t}=16.17\ \kWh.
+\end{gathered}
+\label{eq:load_data}
+\end{equation}
+The total reference demand is 258.72 kWh/day. There are eight 3 kW PV systems ($c_i^G=1.41$ DKK/kWh, 13.47 kWh available per system on d1) and eight 2 kWh batteries, with $\bar p_i^{\rm ch}=\bar p_i^{\rm dis}=0.75$ kW, $\eta_i^{\rm ch}=\eta_i^{\rm dis}=0.95$ and $s_i^0=1$ kWh. The price range is 0.85--2.50 DKK/kWh and the full tariffs are 0.50 and 0.40 DKK/kWh. The supplied base contract is $K_t=9.39$ kW, $\beta^{\rm DSO}=0.75$, $\alpha^{\rm DSO}=10$ DKK/kWh and no export cap, with $f=1.3$. Figure~\ref{fig:inputs} shows the input profiles. For the one-hour time step all hourly energy flows (kWh per hour) are numerically equal to power (kW); the factor of one hour is implicit in daily sums.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.88\linewidth]{input_profiles.pdf}
+    \caption{Input data for d1: the largest preferred loads are around midday, whereas the highest energy price is at hour 19. The tariff spreads govern imports and exports; PV availability is forecast and generation may be curtailed.}
+    \label{fig:inputs}
+\end{figure}
+
+The daily minimum is retained as an inequality, as required by the assignment. A cyclic battery condition is imposed in all models: the battery ends at its initial state of charge. Otherwise it could reduce the one-day cost simply by consuming energy stored before the optimization horizon. This is the end-of-horizon modeling choice discussed in Week 5 \cite{week5}. No explicit degradation cost or internal network constraint is assumed, because neither is included in the data or problem setting.
+
+\subsection{Common appliance model}
+The local cost and the net demand of member $i$ are
+\begin{align}
+F_i(\bm x_i)&=\sum_{t\in\mathcal T}\left(c_i^L d_{i,t}+c_i^G g_{i,t}\right), \label{eq:localcost}\\
+q_{i,t}&=\ell_{i,t}+p_{i,t}^{\rm ch}-g_{i,t}-p_{i,t}^{\rm dis},\qquad i\in\mathcal N,\ t\in\mathcal T. \label{eq:net}
+\end{align}
+The first expression accounts for the disutility from departing from the preferred load and the marginal cost of actual PV production. The second is the member's signed net hourly consumption, after generation and storage. The appliance decisions $\bm x_i=(\ell_i,d_i,g_i,p_i^{\rm ch},p_i^{\rm dis},s_i)$ satisfy:
+\begin{subequations}\label{eq:appliances}
+\begin{align}
+\underline\ell_{i,t}\leq\ell_{i,t}&\leq\bar\ell_{i,t}
+    &&\forall i\in\mathcal N,\ t\in\mathcal T, \label{eq:loadbounds}\\
+\sum_{t\in\mathcal T}\ell_{i,t}&\geq E_i^{\min}
+    &&\forall i\in\mathcal N, \label{eq:daily}\\
+d_{i,t}&\geq\ell_{i,t}-\ell^{\rm ref}_{i,t}
+    &&\forall i\in\mathcal N,\ t\in\mathcal T, \label{eq:absplus}\\
+d_{i,t}&\geq\ell^{\rm ref}_{i,t}-\ell_{i,t},\quad d_{i,t}\geq0
+    &&\forall i\in\mathcal N,\ t\in\mathcal T, \label{eq:absminus}\\
+0\leq g_{i,t}&\leq\bar g_{i,t}
+    &&\forall i\in\mathcal N_{\rm PV},\ t\in\mathcal T, \label{eq:pv}\\
+0\leq p_{i,t}^{\rm ch}&\leq\bar p_i^{\rm ch},\quad
+0\leq p_{i,t}^{\rm dis}\leq\bar p_i^{\rm dis}
+    &&\forall i\in\mathcal N_{\rm B},\ t\in\mathcal T, \label{eq:battpower}\\
+s_{i,t}&=s_{i,t-1}+\eta_i^{\rm ch}p_{i,t}^{\rm ch}
+            -\frac{p_{i,t}^{\rm dis}}{\eta_i^{\rm dis}}
+    &&\forall i\in\mathcal N_{\rm B},\ t\in\mathcal T, \label{eq:soc}\\
+0\leq s_{i,t}&\leq\bar s_i
+    &&\forall i\in\mathcal N_{\rm B},\ t\in\mathcal T, \label{eq:socbounds}\\
+s_{i,-1}&=s_i^0,\quad s_{i,23}=s_i^0
+    &&\forall i\in\mathcal N_{\rm B}. \label{eq:terminal}
+\end{align}
+\end{subequations}
+Constraint \eqref{eq:loadbounds} limits the hourly discomfort, while \eqref{eq:daily} prevents shedding the required daily energy. Equations \eqref{eq:absplus}--\eqref{eq:absminus} linearize the absolute deviation: because $c_i^L>0$, the optimizer sets $d_{i,t}=|\ell_{i,t}-\ell^{\rm ref}_{i,t}|$. Equation \eqref{eq:pv} restricts production to available PV. The charging and discharging limits are in \eqref{eq:battpower}, the losses and intertemporal conservation of stored energy in \eqref{eq:soc}, its capacity in \eqref{eq:socbounds}, and initial and terminal energy in \eqref{eq:terminal}. For members without the relevant asset, its variables are omitted and its contribution to \eqref{eq:net} is zero.
+
+\subsection{Three dispatch models}
+\paragraph{Reference, \(\Rmod\).} Each consumer independently minimizes its own economic cost with no contract:
+\begin{subequations}\label{eq:R}
+\begin{align}
+\Rmod_i:\quad
+\min_{\bm x_i,\,q^{\rm imp}_i,q^{\rm exp}_i}\quad
+ &F_i(\bm x_i)+\sum_{t\in\mathcal T}
+ \left[(p_t+\tau^{\rm imp})q_{i,t}^{\rm imp}
+       +(\tau^{\rm exp}-p_t)q_{i,t}^{\rm exp}\right]\\
+\text{s.t.}\quad
+ &\eqref{eq:appliances}\ \text{for member }i,\nonumber\\
+ &q_{i,t}^{\rm imp}-q_{i,t}^{\rm exp}=q_{i,t}
+       &&\forall t\in\mathcal T,\\
+ &q_{i,t}^{\rm imp},q_{i,t}^{\rm exp}\geq0
+       &&\forall t\in\mathcal T.
+\end{align}
+\end{subequations}
+Import incurs the day-ahead price plus the full import tariff. Export earns the day-ahead price but pays the export tariff. The balance links the separate member meter to its appliances, and the two gross flows are nonnegative. The optimal value of \eqref{eq:R} is $J_i^{\Rmod}$; $J^{\Rmod}=\sum_i J_i^{\Rmod}$.
+
+\paragraph{Individual contracts, \(\Imod\).} The cap profile is divided according to the reference day's net import:
+\begin{equation}
+\kappa_i =
+\frac{\pos{\sum_t q_{i,t}^{\Rmod}}}{\sum_{j\in\mathcal N}\pos{\sum_t q_{j,t}^{\Rmod}}},
+\qquad K_{i,t}=\kappa_i K_t,\quad \sum_i\kappa_i=1.
+\label{eq:share}
+\end{equation}
+Here the superscript $\Rmod$ denotes a reference solution. We use the shares supplied in the contract file, normalized by their sum 1.000001 to remove six-decimal rounding. The caps are about 0.98--1.00 kW for members without PV and 0.18--0.19 kW for PV owners. The shares are held fixed during contract sweeps.
+
+Define the discounted tariff and incremental penalty coefficients once:
+\begin{equation}
+a=(1-\beta^{\rm DSO})\tau^{\rm imp},\qquad
+b=(1-\beta^{\rm DSO})\tau^{\rm exp},\qquad
+\gamma=\alpha^{\rm DSO}-a .
+\label{eq:tariffs}
+\end{equation}
+The assignment explicitly charges the discounted import tariff on import below the cap, and the penalty on import above it \cite[pp.~4--5]{a2}. Thus, for gross import $q^{\rm imp}_{i,t}$, its tariff part is $a\min(q^{\rm imp}_{i,t},K_{i,t})$ and its penalty is $\alpha^{\rm DSO}\pos{q^{\rm imp}_{i,t}-K_{i,t}}$. The import still pays the energy price on \emph{every} kWh. Hence the equivalent linear formulation is
+\begin{subequations}\label{eq:I}
+\begin{align}
+\Imod_i:\quad
+\min_{\bm x_i,\,q^{\rm imp}_i,q^{\rm exp}_i,e_i}\quad
+ &F_i(\bm x_i)+\sum_{t\in\mathcal T}\left[
+ (p_t+a)q_{i,t}^{\rm imp}+(b-p_t)q_{i,t}^{\rm exp}
+ +\gamma e_{i,t}\right]\\
+\text{s.t.}\quad &\text{appliance and meter constraints of }\Rmod_i,\nonumber\\
+ &q_{i,t}^{\rm imp}-e_{i,t}\le K_{i,t},\quad e_{i,t}\geq0
+      &&\forall t\in\mathcal T .
+\end{align}
+\end{subequations}
+Only the meter objective and the soft-cap constraint change. Since $\gamma>0$ in the base case and all penalty sweeps, $e_{i,t}=\pos{q^{\rm imp}_{i,t}-K_{i,t}}$ at optimum. The import cost is $p_t+a$ for the below-cap tranche and $p_t+\alpha^{\rm DSO}$ for the excess tranche. The cap is \emph{not} a hard feasibility constraint; exceedance is possible at a cost. Let $J_i^{\Imod}$ be the optimum, with $J^{\Imod}=\sum_i J_i^{\Imod}$.
+
+\paragraph{Community contract, \(\Cmod\).} Now the community manager controls all appliances and the common connection point. Only metered flows pay tariffs or the penalty. The economic objective is the sum of member discomfort and PV costs plus actual payments at the shared meter:
+\begin{subequations}\label{eq:C}
+\begin{align}
+\Cmod:\quad
+\min_{\{\bm x_i\}_{i\in\mathcal N},\,P^{\rm imp},P^{\rm exp},e}\quad
+ &\sum_{i\in\mathcal N}F_i(\bm x_i)
+ +\sum_{t\in\mathcal T}\left[
+ (p_t+a)P_t^{\rm imp}+(b-p_t)P_t^{\rm exp}+\gamma e_t\right]\\
+\text{s.t.}\quad &\eqref{eq:appliances}\ \text{for all members},\nonumber\\
+ &P_t^{\rm imp}-P_t^{\rm exp}-\sum_{i\in\mathcal N}q_{i,t}=0
+        &&\forall t\in\mathcal T, \label{eq:communitybalance}\\
+ &P_t^{\rm imp}-e_t\le K_t
+        &&\forall t\in\mathcal T, \label{eq:communitycap}\\
+ &P_t^{\rm imp},P_t^{\rm exp},e_t\ge0
+        &&\forall t\in\mathcal T.
+\end{align}
+\end{subequations}
+The individual meter constraints and caps are replaced by the hourly community balance \eqref{eq:communitybalance} and one soft cap \eqref{eq:communitycap}. As the supplied model values consumption through deviations from reference and prescribes daily demand, maximizing social welfare is equivalent to minimizing this economic cost $J^{\Cmod}$ (up to an irrelevant constant). Internal payments are transfers and must not be included again in this objective.
+
+\paragraph{Problem class and modeling implications.}
+All three problems are linear programs (LPs): the decision variables are continuous, the objectives linear and the feasible sets polyhedra. The soft cap preserves feasibility, since the reference load, curtailed PV, and an idle cyclic battery are feasible appliance schedules, with excess covered by $e$. The underlying net flows are bounded by the device limits, and paying nonnegative tariffs and $\gamma>0$ precludes an unbounded improvement from gross flows or slack. Thus the finite optima satisfy strong LP duality; primal and dual feasibility, stationarity, and complementary slackness are necessary and sufficient for optimality, as in the course's duality and pricing lectures \cite{slides,week4}. Appendix~\ref{app:dual} states the complete compact dual and KKT system.
+
+The minimum selling price $p_t-b$ (or $p_t-\tau^{\rm exp}$ in $\Rmod$) is positive for the supplied day. If both import and export are positive, reducing them equally preserves net demand and decreases the tariff cost, unless tariffs are both zero and the reduction is cost-neutral. When $\beta^{\rm DSO}=1$, we use the canonical gross flows (positive and negative parts of net demand) at any such tie. Similarly, simultaneous charging and discharging with $\eta^{\rm ch}\eta^{\rm dis}<1$ is dominated: reducing charge by a small amount and discharge by $\eta^{\rm ch}\eta^{\rm dis}$ times that amount preserves the state of charge but reduces net demand and its strictly positive marginal cost. Therefore no binary variables are needed for these cases (Week 5). The daily minimum binds: if daily consumption exceeds the reference total, some hourly load lies above reference and can be reduced, lowering both disutility and net purchasing cost.
+
+\paragraph{Why pooling cannot cost more than individual contracts.}
+Take the optimal schedules of all $\Imod_i$ as a feasible appliance schedule for $\Cmod$. The shared meter can represent the same net demand with
+\begin{equation}
+P_t^{\rm imp}=\pos{\sum_i(q_{i,t}^{\rm imp}-q_{i,t}^{\rm exp})},
+\qquad
+P_t^{\rm exp}=\pos{-\sum_i(q_{i,t}^{\rm imp}-q_{i,t}^{\rm exp})}.
+\end{equation}
+These gross flows are no larger than the sums of the respective individual flows. The shared excess also satisfies
+\begin{equation}
+\pos{P_t^{\rm imp}-K_t}
+\le \pos{\sum_i(q_{i,t}^{\rm imp}-K_{i,t})}
+\le \sum_i\pos{q_{i,t}^{\rm imp}-K_{i,t}} .
+\label{eq:dominate}
+\end{equation}
+The first inequality uses $\sum_i K_{i,t}=K_t$; the second follows from subadditivity of the positive part. The day-ahead net payment and local costs are unchanged, while nonnegative discounted tariffs and the nonnegative incremental excess coefficient cannot make the pooled schedule more expensive. Optimizing it further can only reduce cost, proving $J^{\Cmod}\leq J^{\Imod}$ for the same contract. There is no corresponding ordering against $\Rmod$: the no-contract model does not pay for exceeding the cap, and a small discount may not cover the cost of changing schedules.
+
+\subsection{Metrics, experiment design and reference validation}
+\label{sec:metrics}
+All experiments use the same 16 members, d1 forecasts and cyclic storage requirement. The reference for economic value is the no-contract optimum:
+\begin{equation}
+B_{\mathcal X|\mathcal Y}=J^{\mathcal Y}-J^{\mathcal X}.
+\label{eq:gain}
+\end{equation}
+A positive value is a gain (DKK/day). $B_{\Imod|\Rmod}$ tests signing individually, $B_{\Cmod|\Rmod}$ tests signing as a community, and $B_{\Cmod|\Imod}$ quantifies the value of pooling. These are whole-community welfare comparisons including disutility, PV costs and the actual grid payment.
+
+From the DSO perspective, the assignment's metered import profile is $A_t^{\Rmod}=\sum_i q_{i,t}^{\rm imp,\Rmod}$ and likewise for $\Imod$, whereas $A_t^{\Cmod}=P_t^{\rm imp}$. Define the residual exceedance and congestion relief as
+\begin{equation}
+H^\mathcal X=\sum_{t\in\mathcal T}\pos{A_t^\mathcal X-K_t},
+\qquad H^\Rmod-H^\mathcal X .
+\label{eq:relief}
+\end{equation}
+These are measured in kWh/day. We also compare $\max_t A_t^\mathcal X$ (kW), $\max_t\pos{A_t^\mathcal X-K_t}$ (kW), the number of hours above/at the cap, and energy removed from the originally congested hours $\sum_{t:A_t^\Rmod>K_t}(A_t^\Rmod-A_t^\mathcal X)$ (kWh). In $\Imod$, the total \emph{billed} excess $\sum_{i,t}e_{i,t}$ is generally not $H^\Imod$: some meters can exceed a small private cap while others leave their allocation unused. The common feeder cap is applied to $\Rmod$ only for comparison.
+
+To explain dispatch, energy shifted by class is measured as
+\begin{equation}
+S_k^\mathcal X=\frac12\sum_{i\in\mathcal N_k}\sum_{t\in\mathcal T}
+        |\ell_{i,t}^{\mathcal X}-\ell^{\rm ref}_{i,t}|\quad [\kWh].
+\label{eq:shift}
+\end{equation}
+The factor $1/2$ avoids counting the same energy twice (once removed and once added), as daily energy stays at 16.17 kWh per member. The behind-meter exchange in $\Cmod$ is $\sum_t\min(\sum_i[q_{i,t}]_+,\sum_i[-q_{i,t}]_+)$.
+
+The one-factor experiments hold the other two contract parameters at their base values. We expect (i) increasing the discount to lower contract costs, since it reduces tariffs; (ii) relaxing the cap to lower the cost of providing flexibility, with the stiffer load classes needed only for tighter feasible caps; and (iii) increasing the penalty to reduce billed exceedance, but eventually make the individual contracts more expensive if some exceedance is unavoidable. The discount is swept from 0 to 100\% in 5-point steps; the cap factor from 0.60 to 3.85 in 0.05 steps, using the supplied cap scaled by $f/1.3$ (from below daily-energy adequacy to above the reference peak); and the penalty from 0.15 to 12 DKK/kWh with finer spacing near important regimes. The penalty range starts just above the base discounted import tariff 0.125 DKK/kWh and spans the energy-price and disutility magnitudes, as well as the base penalty. Exact cost break-even points are refined using bracketed LP resolves, and a small cap-discount interaction study at fixed penalty tests how contract terms substitute for one another.
+
+\paragraph{Validation before interpretation.}
+The solved $\Rmod$ gives a cost of \Rcost{} DKK, daily metered import of \Rimp{} kWh and peak of \Rpeak{} kW, reproducing the supplied rounded references 398.24 DKK, 173.4 kWh and 27.6 kW. It exceeds the cap in nine hours, as specified. The calculated exceedance \Rex{} kWh differs slightly from the file's rounded 66.5 kWh because $\Rmod$ has multiple optimal schedules. Holding the cost fixed and minimizing/maximizing import in the original congested-hour set constructs feasible, equal-cost witnesses with \RtieLo{} and \RtieHi{} kWh exceedance (both retain the same daily gross import, peak, and nine congested hours). The file's value lies between them. The primary dual-simplex schedule is used consistently in every comparison.
+
+Additional checks: the no-contract, full-tariff \emph{own-meter} limit of $\Cmod$ reproduces $J^\Rmod$, as does $\Imod$ with zero discount and sufficiently large private caps. Separate member solves reproduce the combined $\Rmod$ and $\Imod$ costs, and an interior-point algorithm with crossover reproduces all three objective values. The net imports used to calculate the supplied $\kappa_i$ match their two-decimal values. The base community cap binds in 18 hours, as stated in the assignment. All balance, demand, bound, objective, primal-dual gap and complementarity checks pass the $10^{-6}$ tolerance. The independent price and rent checks are reported in Section~\ref{sec:settle}. Outputs are reproduced using the supplied code (Appendix~\ref{app:code}).
+
+\subsection{Base-case results: who provides the flexibility?}
+\begin{table}[H]
+    \centering\small
+    \caption{Economic cost of the three models on d1. The difference between $\Imod$ and $\Cmod$ is the value of pooled flexibility and netting at one meter.}
+    \label{tab:costs}
+    \input{../results/q1/tables/base_cost.tex}
+\end{table}
+\begin{table}[H]
+    \centering\small
+    \caption{DSO and metering metrics for the same base cap $9.39$ kW. The no-contract case has no billed penalty.}
+    \label{tab:dso}
+    \input{../results/q1/tables/base_dso.tex}
+\end{table}
+
+\textbf{Economic value.} Table~\ref{tab:costs} shows that $\Cmod$ saves \Cgain{} DKK (\Cgainpct\%) over $\Rmod$, while $\Imod$ increases cost by \Iloss{} DKK (\Ilosspct\%). Pooling saves \Poolinggain{} DKK relative to individual contracts. The individual tariff discount is outweighed by the cost of forcing every consumer to comply with its private allocation: disutility increases to 106.72 DKK and penalties are 42.88 DKK. The shared contract instead schedules the members jointly, avoids all penalties, and incurs only 47.40 DKK disutility. The welfare-maximizing collective choice under these contract terms is therefore $\Cmod$.
+
+\textbf{DSO service.} The reference peak of \Rpeak{} kW is reduced to \Ipeak{} kW in $\Imod$ and \Cpeak{} kW in $\Cmod$ (a \Cpeakpct\% peak reduction relative to $\Rmod$). The latter removes all \Rex{} kWh of feeder exceedance; $\Imod$ removes \Ireliefpct\%, leaving \Iex{} kWh. Import is moved out of the originally congested hours into early and late hours (Fig.~\ref{fig:dispatch}a). The most severe remaining individual-contract exceedance is 1.69 kW.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{base_dispatch.pdf}
+    \caption{(a) Metered imports with the same cap; grey regions denote the nine originally congested hours. (b) Central dispatch: aggregate hourly deviation from the four class members' reference loads, with red for increased load and blue for reduced load. The slope in parentheses is in DKK/kWh.}
+    \label{fig:dispatch}
+\end{figure}
+
+The residual exceedance in $\Imod$ is not a solver failure or a penalty that is too small. For a member without storage, $q_{i,t}^{\rm imp}\ge [\underline\ell_{i,t}-\bar g_{i,t}]_+$, since load cannot go below its lower bound and PV cannot exceed availability. Consequently,
+\begin{equation}
+\sum_{i,t}e_{i,t}^{\Imod}
+\ \geq\!
+\sum_{i\in\mathcal N\setminus\mathcal N_{\rm B}}
+\sum_{t\in\mathcal T}\pos{\underline\ell_{i,t}-\bar g_{i,t}-K_{i,t}}
+=\UnavoidableI\ \kWh .
+\label{eq:unavoidable}
+\end{equation}
+For example, at hour 12 a no-asset member has a lower load bound of 1.40 kW but a cap near 0.977 kW. At hour 11 a PV-only member must import at least $1.10-0.75=0.35$ kW, more than its 0.18--0.19 kW cap. The lower bound in \eqref{eq:unavoidable} equals the total billed excess actually achieved: no incentive, however large, can remove it under those individual caps. Shared dispatch allows these loads to use the flexibility of the other members.
+
+\begin{table}[H]
+    \centering\small
+    \caption{Energy shifted relative to the preferred profile, summed over the four members per class (kWh/day).}
+    \label{tab:shifts}
+    \input{../results/q1/tables/base_shifts.tex}
+\end{table}
+Table~\ref{tab:shifts} reveals that $\Imod$ makes all four load classes shift substantial energy, including L4. In $\Cmod$, the two least costly classes account for 50.26 of the \Cshift{} kWh shifted, while the two stiffer classes account for only 5.37 kWh. At hour 11 all twelve L1--L3 members reduce their loads by 1 kW and one marginal L4 member reduces by 0.21 kW (Fig.~\ref{fig:dispatch}b). Total load is 21.39 kW instead of 33.60 kW at reference; the eight batteries discharge at their aggregate 6 kW limit and PV supplies 6 kW, giving import of $21.39-6-6=9.39$ kW. The shared cap therefore uses the least expensive available flexibility first, rather than forcing each consumer to solve its own tight cap problem.
+
+The daily gross import is actually higher after pooling: \Cimp{} kWh instead of 173.39 kWh, despite \Cexchange{} kWh of actual behind-meter exchange. This is not contradictory. Net import increases from \Rnet{} to \Cnet{} kWh because PV production falls from \Rpv{} to \Cpv{} kWh and storage losses rise from \Rlosses{} to \Closses{} kWh; gross exports also increase. The service concerns the \emph{timing and peak} of import rather than minimum total imported energy. The DSO's tariff-plus-penalty receipts fall by \DSOreceiptsLost{} DKK from $\Rmod$ to $\Cmod$, about \DSOreceiptPerRelief{} DKK per kWh of removed exceedance. This is a measure of foregone receipts, not a complete DSO profit calculation; avoided reinforcement costs are not supplied.
+
+\subsection{Sensitivity to contract terms}
+\label{sec:sensitivity}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.97\linewidth]{contract_sweeps.pdf}
+    \caption{One-factor sensitivity, with the remaining two terms fixed at the base values. Left: daily community cost gain against $\Rmod$ (above zero is beneficial); right: physical feeder exceedance against the corresponding cap. Dots mark refined cost break-even values; vertical dotted lines identify base terms. Lines join sampled optima and do not imply continuity of the dispatch at ties.}
+    \label{fig:sweeps}
+\end{figure}
+
+\textbf{Discount.} The top row of Fig.~\ref{fig:sweeps} confirms that a larger discount raises the economic gain in both contract models. At the base cap and penalty, $\Cmod$ breaks even with $\Rmod$ at a discount of \BetastarC\%. At zero discount it costs \ClossNoDisc{} DKK/day more than $\Rmod$; at full discount it saves \CgainFullDisc{} DKK/day. In contrast, $\Imod$ remains unprofitable even at a 100\% discount (loss of \IlossFullDisc{} DKK/day). The DSO's residual exceedance remains 0 for $\Cmod$ and 4.29 kWh for $\Imod$ throughout this sweep. The discount buys willingness to participate, without removing the physical bottleneck of an individual cap.
+
+\textbf{Cap tightness.} At the base discount and penalty, the cost-crossing points are $K=\KstarC$ kW ($f=\FstarC$) for the community contract and $K=\KstarI$ kW ($f=\FstarI$) for the individual contracts. Monotonicity follows because increasing $K$ never increases the cost of a fixed feasible schedule. Below \KstarC{} kW neither contract is cheaper than $\Rmod$; between \KstarC{} and \KstarI{} kW only $\Cmod$ is cheaper; above \KstarI{} kW both are cheaper, with $\Cmod$ still weakly preferred in aggregate cost.
+At a crossing the relevant model is indifferent in total cost. A tighter cap can be technically attainable but economically unattractive: at $K=\CtightCap$ kW, $\Cmod$ has zero exceedance but loses \CtightCapLoss{} DKK relative to $\Rmod$. Relaxing the cap beyond the 27.60 kW reference peak eliminates the original congestion by definition; private gains can still occur, but there is no feeder exceedance left to remove. Under extreme tightness ($f=0.6$), $\Cmod$ has slightly higher residual exceedance than $\Imod$ (48.34 versus 47.80 kWh) despite its lower cost. This is consistent with the objective: with a finite penalty, maximizing welfare is not the same as separately minimizing exceedance.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\linewidth]{cap_merit_order.pdf}
+    \caption{Central-dispatch energy shifting when the cap is tightened, with discount and penalty fixed. Shaded area: the sampled tight-cap cases have residual exceedance. The curves show how stiffer load classes become useful as the cheaper flexibility is exhausted.}
+    \label{fig:merit}
+\end{figure}
+
+Figure~\ref{fig:merit} shows the flexibility merit order. At $f=2$ (14.45 kW), the two most flexible classes shift 20.95 and 3.39 kWh, while L3 and L4 remain at reference. As the cap is tightened, L2 and then L3 have to shift more; L4 first becomes relevant near the base cap. At $f=1.1$, L3 and L4 shift 10.94 and 1.65 kWh. In the very tight soft-cap region this order need not be monotonic: several hours hit their penalty-limited marginal price and it can become cheaper to pay excess than to move a stiff load between similarly expensive hours.
+
+\begin{table}[H]
+    \centering\small
+    \caption{Minimum tariff discount for nonnegative whole-community gain at selected caps and $\alpha^{\rm DSO}=10$ DKK/kWh. A dash means that even 100\% discount is insufficient.}
+    \label{tab:frontier}
+    \input{../results/q1/tables/break_even.tex}
+\end{table}
+The cap-discount interaction in Table~\ref{tab:frontier} generalizes the base slices. For example, reducing the cap from 9.39 to 8.31 kW raises the minimum community-contract discount from 48.4\% to 72.6\%. At 14.45 kW both contracts become beneficial if the discount is at least 63.2\%, whereas the community alone needs only 14.0\%. This is the trade-off the DSO faces: extracting more flexibility requires sharing more of the tariff revenue, and shared dispatch extends the range of mutually attractive contracts.
+
+\textbf{Penalty.} At a discount of 75\% and the base cap, a penalty barely above the discounted import tariff is too weak. At 0.15 DKK/kWh, even $\Cmod$ has \CPenaltyLowEx{} kWh of exceedance, more than the reference: cheaper import incentives concentrate demand. In the sampled range, both models first provide positive DSO relief between 0.45 and 0.50 DKK/kWh. At 0.50, $\Cmod$ saves \CPenaltyHalfGain{} DKK and leaves \CPenaltyHalfEx{} kWh, while $\Imod$ saves \IPenaltyHalfGain{} DKK and leaves \IPenaltyHalfEx{} kWh. Thus both can be economically beneficial at a modest penalty, but they do not eliminate congestion. The individual contracts break even at $\alpha^{\rm DSO}=\AlphastarI$ DKK/kWh; larger penalties make them more costly than $\Rmod$.
+
+Increasing the penalty beyond the marginal value of avoiding excess produces no further service for $\Cmod$. Its base hard-cap optimum has a largest cap multiplier of \MaxtieMu{} DKK/kWh (Section~\ref{sec:settle}). From the exact-penalty argument in Appendix~\ref{app:penalty}, $\alpha^{\rm DSO}>\AlphasafeC$ DKK/kWh suffices to enforce zero excess at this cap and discount; the LP optimum just below the threshold has \CBeforeExactEx{} kWh remaining. At equality, a zero-excess solution is optimal but another tied schedule may be possible. All tested larger penalties give the same community cost. By contrast, at $\alpha^{\rm DSO}=6$ the individual model already reaches the unavoidable lower bound \eqref{eq:unavoidable}; increasing the penalty from 6 to 10 only makes it more expensive by $4\cdot4.288\approx17.15$ DKK/day without any flexibility gain. Therefore the base penalty is unnecessarily high for deterministic shared dispatch and cannot solve the separate-cap bottleneck.
+
+\subsection{Dual-price settlement, individual rationality and budget balance}
+\label{sec:settle}
+The community contract in the base case is beneficial in total, making it the relevant case for settlement analysis. We follow the Week 4 marginal pricing convention: attach $\lambda_t$ to $\sum_i q_{i,t}-P_t^{\rm imp}+P_t^{\rm exp}$ in the minimization Lagrangian, and $\mu_t\ge0$ to $P_t^{\rm imp}-e_t-K_t$. Thus the solver's equality RHS marginal for \eqref{eq:communitybalance} is the positive internal price $\lambda_t$; the negative of the cap-inequality RHS marginal is $\mu_t$. The latter is the saving in optimal cost from relaxing that hour's cap by one kW locally.
+
+Let $\delta_t^{\rm imp},\delta_t^{\rm exp},\delta_t^e\ge0$ be the nonnegativity-bound multipliers of the three metered variables. The relevant Lagrangian terms in hour $t$ are
+\begin{equation}
+\begin{split}
+&(p_t+a)P_t^{\rm imp}+(b-p_t)P_t^{\rm exp}+\gamma e_t\\
+&+\lambda_t\left(\sum_i q_{i,t}-P_t^{\rm imp}+P_t^{\rm exp}\right)
+ +\mu_t(P_t^{\rm imp}-e_t-K_t)\\
+&-\delta_t^{\rm imp}P_t^{\rm imp}-\delta_t^{\rm exp}P_t^{\rm exp}-\delta_t^e e_t .
+\end{split}
+\end{equation}
+Differentiating each meter variable gives stationarity for every hour:
+\begin{align}
+0&=p_t+a-\lambda_t+\mu_t-\delta_t^{\rm imp},\label{eq:statimp}\\
+0&=b-p_t+\lambda_t-\delta_t^{\rm exp},\label{eq:statexp}\\
+0&=\gamma-\mu_t-\delta_t^e.\label{eq:state}
+\end{align}
+Together with feasibility and complementary slackness,
+\begin{equation}
+\begin{gathered}
+\delta_t^{\rm imp}P_t^{\rm imp}=
+\delta_t^{\rm exp}P_t^{\rm exp}=\delta_t^e e_t=0,\\
+\mu_t(P_t^{\rm imp}-e_t-K_t)=0,\qquad \forall t\in\mathcal T,
+\end{gathered}
+\label{eq:comp}
+\end{equation}
+these imply $0\le\mu_t\le\gamma$ and the following price regimes (all studied caps are positive).
+\begin{table}[H]
+    \centering\small
+    \caption{Internal price regimes derived from meter stationarity and complementary slackness.}
+    \label{tab:regimes}
+    \begin{tabularx}{\linewidth}{@{}p{0.39\linewidth}X@{}}
+        \toprule
+        Meter condition & Economic price and interpretation\\ \midrule
+        $P_t^{\rm exp}>0$ & $\lambda_t=p_t-b$: one more net kWh displaces an export.\\
+        $0<P_t^{\rm imp}<K_t$ & $\lambda_t=p_t+a$: the cap is slack and $\mu_t=0$.\\
+        $P_t^{\rm imp}=K_t>0,\ e_t=0$ & $\lambda_t=p_t+a+\mu_t$: the value of scarce cap capacity is added to the discounted import price. A binding cap may still have $\mu_t=0$.\\
+        $P_t^{\rm imp}>K_t$ & $e_t>0,\ \mu_t=\gamma$ and $\lambda_t=p_t+\alpha^{\rm DSO}$: an extra kWh pays the penalty.\\
+        $P_t^{\rm imp}=P_t^{\rm exp}=0$ & $p_t-b\le\lambda_t\le p_t+a$: internal balance can set the price inside the tariff spread.\\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+These conditions also explain the order of load response. At a given $\lambda_t$, member $i$ minimizes $F_i+\sum_t\lambda_t q_{i,t}$ subject to its own appliances. Let $\nu_i\ge0$ be the multiplier of $E_i^{\min}-\sum_t\ell_{i,t}\le0$. The load-dependent Lagrangian term is $c_i^L|\ell_{i,t}-\ell^{\rm ref}_{i,t}|+(\lambda_t-\nu_i)\ell_{i,t}$. Below reference its slope is $\lambda_t-\nu_i-c_i^L$, and above reference it is $\lambda_t-\nu_i+c_i^L$. Hence
+\begin{equation}
+\ell_{i,t}=
+\begin{cases}
+\underline\ell_{i,t}, & \lambda_t-\nu_i>c_i^L,\\
+\ell^{\rm ref}_{i,t}, & |\lambda_t-\nu_i|<c_i^L,\\
+\bar\ell_{i,t}, & \lambda_t-\nu_i<-c_i^L.
+\end{cases}
+\label{eq:loadregimes}
+\end{equation}
+At $\lambda_t-\nu_i=c_i^L$, any point between the lower bound and reference is optimal for that hour; at $-c_i^L$, the interval is reference to upper bound. The daily constraint couples the choices. Moving one kWh from one hour to another costs $2c_i^L$ when both deviations are counted, which is why it takes a larger price spread to call on stiffer consumers. Equivalently, PV's local coefficient is $c_i^G-\lambda_t$: positive available PV is dispatched at its upper bound when $\lambda_t>c_i^G$, at zero when $\lambda_t<c_i^G$, and may be partially dispatched at equality. Storage responds to the intertemporal loss-adjusted value of energy, as in Week 5.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.93\linewidth]{settlement_prices.pdf}
+    \caption{Internal marginal price versus discounted grid buying and selling prices in $\Cmod$. Shaded hours have a positive cap multiplier. The vertical difference from the buying price in a shaded importing hour is the marginal value of cap relaxation.}
+    \label{fig:prices}
+\end{figure}
+
+Figure~\ref{fig:prices} verifies the price regimes. During hours 17 and 22, import is below the cap and $\lambda_t=p_t+a$; hours 18--20 export and $\lambda_t=p_t-b$; at hour 21 there is no external trade and $\lambda_t=1.895$ DKK/kWh is inside the tariff spread. Hour 6 has partly used PV and \(\lambda_t=c_i^G=1.41\) DKK/kWh. At hour 11 ($p_{11}=1.10$), the price rises to 5.41 DKK/kWh, with $\mu_{11}=4.185$ and $p_{11}+a=1.225$. This high price is caused by the scarce shared import capacity, not the day-ahead market price. The L4 daily-energy multiplier is 3.41 DKK/kWh, so the L4 price difference equals its slope 2.00 at this hour: a marginal L4 consumer is indifferent to a partial reduction, consistent with the 0.21 kW reduction in Fig.~\ref{fig:dispatch}. Relaxing the hour-11 cap by 0.001 kW reduces the objective by 0.004185 DKK, independently confirming the cap dual. A separate price-taking solve of all 16 members at $\lambda_t$ (with no individual tariffs or caps) reproduces every member's settled optimum cost to within $10^{-6}$ DKK. This is the allocative-efficiency result of the Week 4 pricing lecture \cite{week4}: the central schedules are individually optimal at the marginal prices, although price-taking responses may be nonunique at the ties in \eqref{eq:loadregimes}.
+
+\paragraph{Member settlement and individual rationality.} Each member pays $\sum_t\lambda_t q_{i,t}$, including a credit for negative net consumption. No additional tariff or penalty is charged behind the meter. The relevant cost and individual gains are
+\begin{align}
+J_i^{\Cmod,\rm set}&=F_i(\bm x_i^{\Cmod})+\sum_{t\in\mathcal T}\lambda_t q_{i,t}^{\Cmod},\label{eq:membercost}\\
+B_{i|\mathcal Y}&=J_i^{\mathcal Y}-J_i^{\Cmod,\rm set},
+\qquad \mathcal Y\in\{\Rmod,\Imod\},\quad i\in\mathcal N.\label{eq:individualbenefit}
+\end{align}
+Individual rationality (IR) holds relative to a specified outside option precisely when the corresponding gain is nonnegative. Include the local costs in both alternatives; comparing electricity bills alone would omit the real cost of load flexibility and PV.
+
+\begin{table}[!htbp]
+    \centering\small
+    \caption{Member-by-member costs and gains under the base dual settlement (DKK/day). Bold positive gains pass IR; negative gains fail. Suffix B denotes battery, PV denotes a PV system, and PVB denotes both.}
+    \label{tab:IR}
+    \input{../results/q1/tables/member_settlement.tex}
+\end{table}
+Table~\ref{tab:IR} shows that only \IRR{} of 16 members benefit relative to $\Rmod$ and \IRI{} of 16 benefit relative to $\Imod$; \IRBoth{} members pass both tests (C1\_PV, C1\_PVB and C2\_PVB). All no-asset and battery-only members lose relative to no contract, even when flexible. The former buy the majority of their energy in the capped hours, with no generation to sell and limited ability to shift away from the price premia. Battery-only members can arbitrage and reduce their individual exposure but still need to import the daily load and losses; all four lose against individual contracts too. PV-only consumers are more protected because production substitutes for expensive import and is credited at the internal price, but three of four still lose against $\Rmod$. PV with storage is most advantaged: all four prefer the community settlement to the individual contract, and the L1/L2 members also gain against no contract. A stiff no-asset C4 member pays 50.27 DKK in $\Cmod$ versus 50.35 in $\Imod$, so barely gains relative to the latter but loses 23.16 DKK relative to $\Rmod$. Its small gain is explained by the expensive individual cap it avoids, not by greater willingness to shift.
+\FloatBarrier
+
+\paragraph{Community manager's budget.}
+The manager collects net internal payments and pays only the actual external meter bill. Its net daily receipt is therefore
+\begin{equation}
+B^{\rm mgr}=\sum_{t\in\mathcal T}
+ \left[\lambda_t\sum_iq_{i,t}-
+ \big((p_t+a)P_t^{\rm imp}+(b-p_t)P_t^{\rm exp}+\gamma e_t\big)\right].
+\label{eq:budget}
+\end{equation}
+Multiplying \eqref{eq:statimp}--\eqref{eq:state} by their respective primal flows, using \eqref{eq:comp} to eliminate the lower-bound terms, and substituting $\sum_i q_{i,t}=P_t^{\rm imp}-P_t^{\rm exp}$ yields
+\begin{equation}
+\begin{split}
+B^{\rm mgr}
+&=\sum_t\big[\mu_t P_t^{\rm imp}-\mu_t e_t\big]\\
+&=\sum_t\mu_t K_t\ge0.
+\end{split}
+\label{eq:rent}
+\end{equation}
+The second equality is cap complementary slackness, so the surplus is exactly the congestion rent of the shared meter. Strict budget balance requires $B^{\rm mgr}=0$, not merely revenue adequacy. The manager pays \Cbill{} DKK to the external meter but collects \Ccollections{} DKK, leaving \Crent{} DKK. The cap rent is positive in 18 hours; it occurs even though the community pays \emph{zero} exceedance penalty. The hourly values in Table~\ref{tab:hourlydual} reproduce \eqref{eq:rent}. The connection with uniform marginal pricing and congestion rents is the same as in the power-balance and congested-capacity examples of Weeks 4--5 \cite{week4,week5}.
+
+The accounting identity
+\begin{equation}
+\sum_i J_i^{\Cmod,\rm set}=J^{\Cmod}+B^{\rm mgr}
+=\CmembersTotal\ \DKK
+\label{eq:memberaccount}
+\end{equation}
+explains the apparent paradox: the physical dispatch saves \Cgain{} DKK, but the private costs of members as a group are larger than in $\Rmod$. The congestion rent is a transfer, not an additional resource cost. In this base case there is even enough surplus to compensate each member against its \emph{better} individual outside option. The sum of these outside-option costs $\sum_i\min(J_i^\Rmod,J_i^\Imod)$ is \OutsideTotal{} DKK, which exceeds $J^\Cmod$ by \SurplusVsBest{} DKK. The worst-off members collectively need \RebateNeed{} DKK of fixed rebates to meet both IR tests; the rent can cover this and leaves \RebateRemainder{} DKK for additional redistribution. Fixed transfers independent of marginal consumption would preserve the dispatch incentives and could make the budget exactly balanced. This is a possible redistribution, not a claim that a single unconstrained uniform hourly price can achieve both requirements; that is the question for Question 2.
+
+\subsection{Conclusion and recommendations}
+For the DSO, the shared contract is the appropriate base-case mechanism: all nine originally congested hours are relieved, the peak falls by \Cpeakpct\%, and the community has a positive aggregate gain. The discount must compensate the economic opportunity cost of the cap; at the base cap and 10 DKK/kWh penalty this requires at least \BetastarC\% for the community but cannot make an individual contract attractive. If the goal is complete compliance at the base cap and discount, a penalty just above \AlphasafeC{} DKK/kWh is sufficient under perfect foresight; raising it further brings no additional flexibility. These thresholds are conditional on the other terms and the d1 member mix, not general tariffs for every day.
+
+For the manager, $\Cmod$ is the ideal dispatch benchmark, with a \Poolinggain{} DKK gain over the individual-contract model. The uniform internal dual prices decentralize the optimal physical allocation but collect excess rent; a budget-balanced and individually rational settlement must be negotiated separately. For members, flexible PV owners with storage gain particularly from pooling, while battery-only members lose under the raw settlement. Members with negative gains should require compensation; the positive aggregate surplus provides room for this, as demonstrated above.
+
+The results assume perfect knowledge of reference loads and PV forecasts and direct control of every appliance. This makes central dispatch a stronger benchmark than implementable indirect control or uncertain response. A lossless behind-meter balance ignores internal network congestion; modeling such constraints could reduce the value of pooling or require different prices across members. Absence of battery degradation can overstate storage-based gains, while the cyclic terminal constraint avoids a one-day gain from emptying batteries but may rule out profitable inter-day operation. LP ties can change hourly schedules and, if dual optima differ, the settlement allocation; a specific primal-dual optimal pair is used for all reported comparisons. The computed dispatch can be reproduced with the code and the unchanged official inputs.
+
+\appendix
+\small
+\section{Complete compact LP dual and KKT conditions}
+\label{app:dual}
+All three formulations are instances of the same sparse LP. For this appendix only, $\bm z$ is the column vector of all active appliance and meter variables, $\bm c$ their objective coefficients, $\bm A\bm z=\bm r$ the balance and battery equalities, $\bm G\bm z\le\bm h$ the deviation, daily-energy, and (when contracted) cap inequalities. $\bm L$ and $\bm U$ are the variable bounds, with infinite bounds omitted. Thus
+\begin{equation}
+\min_{\bm z}\ \bm c^\top\bm z
+\quad\text{s.t.}\quad
+\bm A\bm z=\bm r,\quad \bm G\bm z\le\bm h,\quad
+\bm L\le\bm z\le\bm U.
+\end{equation}
+Associate the free vector $\bm y$ with $\bm r-\bm A\bm z$, and the nonnegative vectors $\bm w,\bm u^-,\bm u^+$ with $\bm G\bm z-\bm h$, $\bm L-\bm z$ and $\bm z-\bm U$, respectively. The Lagrangian is
+\begin{align}
+\mathcal L(\bm z,\bm y,\bm w,\bm u^-,\bm u^+)
+&=\bm c^\top\bm z+\bm y^\top(\bm r-\bm A\bm z)
+ +\bm w^\top(\bm G\bm z-\bm h)\nonumber\\
+&\quad+(\bm u^-)^\top(\bm L-\bm z)+(\bm u^+)^\top(\bm z-\bm U).
+\end{align}
+Regroup by $\bm z$. Taking the infimum over the now unrestricted column vector gives a finite value exactly when its coefficient is zero. Keeping the constant part gives the complete dual (all vector equalities apply componentwise):
+\begin{subequations}\label{eq:dual}
+\begin{align}
+\max_{\bm y,\bm w,\bm u^-,\bm u^+}\quad
+ &\bm r^\top\bm y-\bm h^\top\bm w+\bm L^\top\bm u^- -\bm U^\top\bm u^+\\
+\text{s.t.}\quad
+ &\bm c-\bm A^\top\bm y+\bm G^\top\bm w-\bm u^-+\bm u^+=\bm0,\\
+ &\bm y\text{ free},\quad\bm w,\bm u^-,\bm u^+\ge\bm0.
+\end{align}
+\end{subequations}
+Every column is one stationarity constraint and every primal row or finite bound has one multiplier; thus \eqref{eq:dual} applies also when the meter architecture changes. In addition to stationarity and dual feasibility in \eqref{eq:dual}, the KKT conditions consist of the original primal constraints and componentwise complementary slackness:
+\begin{equation}
+\begin{gathered}
+\bm w\odot(\bm G\bm z-\bm h)=\bm0,\qquad
+\bm u^-\odot(\bm L-\bm z)=\bm0,\qquad
+\bm u^+\odot(\bm z-\bm U)=\bm0 .
+\end{gathered}
+\end{equation}
+Here $\odot$ denotes componentwise multiplication. This includes the nonnegativity bounds and all asset bounds, not just the cap. Equality multipliers give marginal RHS costs; for the community-balance row, $\bm y$ contains $\lambda_t$. An inequality multiplier is the saving from increasing the corresponding upper RHS; for the cap it is $\mu_t$, and for the daily minimum written with a minus sign it is $\nu_i$ (the added cost of requiring an extra kWh of daily consumption). Upper- and lower-bound multipliers give the marginal savings from relaxing an upper bound or the additional cost of raising a lower bound. SOC-dynamics multipliers value stored energy across hours; the terminal equality's multiplier prices a change in required final stored energy. Any strictly slack inequality has zero multiplier; binding alone does not imply a strictly positive multiplier. These conditions are necessary and sufficient for the feasible, finite LPs by strong duality. The solver's reported marginals are used for the full KKT residual and dual objective checks, not reconstructed from the primal schedule alone.
+
+\section{Exact-penalty threshold for the community cap}
+\label{app:penalty}
+For the same day, discount and cap, define $F$ as the objective of $\Cmod$ with the excess term removed. The hard-cap version imposes $P_t^{\rm imp}\le K_t$ without $e_t$. The base soft-cap optimum satisfies this hard cap and its multiplier vector $\mu^*$ is also optimal for the hard-cap LP (remove $e_t=0$ from its KKT system). By strong duality, for any schedule satisfying the other constraints,
+\begin{equation}
+F+\sum_t\mu_t^*(P_t^{\rm imp}-K_t)\ \geq J_{\rm hard}^*,
+\end{equation}
+where $J_{\rm hard}^*$ is the optimal hard-cap cost. For a feasible soft-cap solution, $P_t^{\rm imp}-K_t\le e_t$ and $\mu_t^*\ge0$, so
+\begin{equation}
+F+\gamma\sum_t e_t\ \geq\
+J_{\rm hard}^*+\sum_t(\gamma-\mu_t^*)e_t .
+\end{equation}
+If $\gamma>\max_t\mu_t^*$, any positive excess would be strictly more expensive than the feasible hard-cap optimum. The sufficient penalty is therefore $\alpha^{\rm DSO}>a+\max_t\mu_t^*=0.125+4.185=4.31$ DKK/kWh for these terms. Equality allows a tied violating schedule and requires care. The numerical perturbations on either side of 4.31 corroborate this derivation.
+
+\section{Hourly settlement and reproduction}
+\label{app:code}
+\begin{table}[H]
+    \centering\small
+    \renewcommand{\arraystretch}{0.88}
+    \caption{Base community solution. Prices $p_t,\lambda_t,\mu_t$ in DKK/kWh, meter columns in kW, last column in DKK for one hour. The cap is 9.39 kW.}
+    \label{tab:hourlydual}
+    \input{../results/q1/tables/hourly_duals.tex}
+\end{table}
+
+\textbf{Implementation.} All three models use \texttt{EnergyCommunityLP} in \texttt{src/q1\_model.py}. The unchanged starter loader reads the base community, day d1. Switching the meter and contract changes the balance, capped flow and objective terms, not the appliance block. Experiments in \texttt{src/q1\_analysis.py} use the SciPy/HiGHS dual-simplex LP solver (primal and dual feasibility tolerances $10^{-8}$); all solves are optimal. Full-precision CSVs, \texttt{validation.json}, thresholds, figures and report tables are generated automatically. Run \texttt{python run\_q1.py base} for base and settlement results, \texttt{python run\_q1.py sensitivity} for the parameter study, or \texttt{python run\_q1.py all} for everything. The README gives software versions and the PDF build command.
+
+\paragraph{AI-use disclosure.}
+ChatGPT assisted with mathematical formulation, implementation, numerical validation, visualization and drafting of this Question 1 section. All numerical results were generated by solving the stated LPs on the supplied data and checked using the documented consistency tests. The final group submission must include the authors' verified participation table and disclose any further AI use.
+
+\begin{thebibliography}{9}
+\footnotesize
+\setlength{\itemsep}{0pt}
+\setlength{\parsep}{0pt}
+\bibitem{a2} DTU 46750, \emph{Assignment 2: An Energy Community Providing Grid Services}, 2026, pp.~4--8, 12--20 (problem, Question 1, data and numerical experiments).
+\bibitem{starter} DTU 46750, \emph{Assignment 2 Starter Package}, README and unchanged input JSON files, especially sections 3 and 4.
+\bibitem{slides} DTU 46750, \emph{OMPS lecture slides}, sections on Lagrangian duality, complementarity and strong duality (merged slides, pp.~121--144).
+\bibitem{week4} DTU 46750, Week 4 lecture notes, \emph{Pricing in Electricity Markets}, sections 1--5 (duality, uniform marginal pricing and allocative efficiency).
+\bibitem{week5} DTU 46750, Week 5 lecture notes, \emph{Multi-period Optimization: The Value of Stored Energy}, especially sections 3--6 (battery dynamics, terminal treatment and congestion rents).
+\end{thebibliography}
+
+\end{document}
